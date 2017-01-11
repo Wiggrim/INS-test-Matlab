@@ -1,4 +1,4 @@
-function [ accel_measurement, gryo_measurement, delta_t, start_p, start_v, start_ati, lat_prof, lon_prof, height_prof, velocity_prof, yaw_prof ] = genIMUMeasurement( start_position, end_position, velocity, height, wcg_flag, delta_l )
+function [ IMU_measurement, delta_t, start_info, GPS_measurement ] = genIMUMeasurement( start_position, end_position, velocity, height, wcg_flag, delta_l )
 
 	% This matlab file is used to build the measurement of gryo and accel
 	% The gryo and accel's measurement are both relative to the I-frame
@@ -41,10 +41,10 @@ function [ accel_measurement, gryo_measurement, delta_t, start_p, start_v, start
 	accel_measurement = accel_measurement + accel_error;
 
 	delta_t = (time_scale(2) - time_scale(1));
-	v_ps = VELOCITY * 1.6878 * 0.3048;
-	start_p = [ lat_prof(1), lon_prof(1), HEIGHT ];
+	v_ps = VELOCITY * 1.6878 * 0.3048;  % m/s
+	start_p = [ lat_prof(1), lon_prof(1), HEIGHT ]; % llh
 	start_v = [ v_ps*cos(tc_prof(1)), v_ps*sin(tc_prof(1)), 0 ];	% NED
-	start_ati = [ 0, 0, tc_prof(1) ];
+	start_ati = [ 0, 0, tc_prof(1) ];   % carrisponding to NED axis
     
     accel_measurement = accel_measurement / delta_t;
     gryo_measurement = gryo_measurement / delta_t;
@@ -52,6 +52,10 @@ function [ accel_measurement, gryo_measurement, delta_t, start_p, start_v, start
     velocity_prof = [velocity_prof(:,2),velocity_prof(:,1),-velocity_prof(:,3)];
     
     yaw_prof = tc_prof;
+    
+    IMU_measurement = [ accel_measurement, gryo_measurement ];
+    start_info = [ start_p; start_v; start_ati ];
+    GPS_measurement = [ lat_prof', lon_prof', height_prof', velocity_prof, yaw_prof' ];
 
 
 end
