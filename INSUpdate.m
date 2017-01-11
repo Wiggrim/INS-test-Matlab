@@ -46,11 +46,13 @@ function [ ins_position, ins_velocity, ins_attitude, recorder, RS_test ] = INSUp
     
     % data space alloc for RS-RAIM
     fai = eye(9,9);
+    fai_latch = zeros(9,9,total_length);
     rs = zeros( 21, total_length );
     H = zeros( 9, 9, total_length );
     observe_vector = zeros( 6, total_length );
     gx = zeros(total_length,1);
     latch = zeros(9,6);
+    latch2 = zeros(9,6,total_length);
     judge = zeros(total_length,1);
     index = zeros(1,total_length);
 	
@@ -137,6 +139,8 @@ function [ ins_position, ins_velocity, ins_attitude, recorder, RS_test ] = INSUp
 %             H(7:15,1:9, k) = fai*(eye(9,9)-latch*eye(6,9));
 %             H(7:15,10:18, k) = -eye(9,9);
 %             H(16:21,10:15, k) = eye(6,6);
+            fai_latch(:,:,k) = fai;
+            latch2(:,:,k) = latch;
             H(:,:,k) = fai * ( eye(9,9) - latch*eye(6,9) );
 
             %formulate the variance matrix V, its size is (21,21)
@@ -180,5 +184,7 @@ function [ ins_position, ins_velocity, ins_attitude, recorder, RS_test ] = INSUp
     RS_test.ob_vector = observe_vector;
     RS_test.ob_variance = ins_variance_latch;
     RS_test.index = index;
+    RS_test.fai = fai_latch;
+    RS_test.latch = latch2;
 
 end
