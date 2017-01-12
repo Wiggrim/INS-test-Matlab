@@ -35,12 +35,12 @@ function [ judge, gx, rs ] = RS_RAIM_check( RS_test_structure )
 
         V = zeros( used_state_num*15-9, used_state_num*15-9 );
         for k = 1 : used_state_num-1
-            V( (k-1)*15+1:(k-1)*15+6, (k-1)*15+1:(k-1)*15+6 ) = eye(6,6)*0.005;
+            V( (k-1)*15+1:(k-1)*15+6, (k-1)*15+1:(k-1)*15+6 ) = eye(6,6)*0.005 + state_variance(1:6,1:6,k+cnt-1);
             V( (k-1)*15+1:(k-1)*15+6, (k-1)*15+7:(k-1)*15+15 ) = (fai(:,:,k+cnt)*latch(:,:,k+cnt)*eye(6,6)*0.005)';
             V( (k-1)*15+7:(k-1)*15+15, (k-1)*15+7:(k-1)*15+15 ) = state_variance(:,:,k+cnt);
             V( (k-1)*15+7:(k-1)*15+15, (k-1)*15+1:(k-1)*15+6 ) = fai(:,:,k+cnt)*latch(:,:,k+cnt)*eye(6,6)*0.005;
         end
-        V( (used_state_num-1)*15+1:(used_state_num-1)*15+6, (used_state_num-1)*15+1:(used_state_num-1)*15+6 ) = eye(6,6)*0.005;
+        V( (used_state_num-1)*15+1:(used_state_num-1)*15+6, (used_state_num-1)*15+1:(used_state_num-1)*15+6 ) = eye(6,6)*0.005+ state_variance(1:6,1:6,used_state_num+cnt-1);
 
         ob_v = zeros( used_state_num*15-9, 1 );
         A = zeros( used_state_num*15-9, used_state_num*6 );

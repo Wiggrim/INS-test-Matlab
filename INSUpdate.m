@@ -1,4 +1,4 @@
-function [ ins_position, ins_velocity, ins_attitude, recorder, RS_test ] = INSUpdate( gryo_measurement, accel_measurement, delta_t, gps_data, start_position, start_velocity, start_attitude )
+function [ ins_position, ins_velocity, ins_attitude, ins_variance, RS_test ] = INSUpdate( gryo_measurement, accel_measurement, delta_t, gps_data, start_position, start_velocity, start_attitude )
 	
 	% This file is used to do INS update using the measurement got from simulation
 	% The gryo_measurement is in body axis, and is calculated by delta_theta/dt
@@ -29,6 +29,8 @@ function [ ins_position, ins_velocity, ins_attitude, recorder, RS_test ] = INSUp
 	R = zeros(3,3); % transform rotation rate to eular angle rate
     
     % data space alloc for kalman-filter
+    error_state = zeros( total_length, 9 );
+    
     accel_accum_bias = zeros(3,1);
     F = zeros(9,9); % disturbation matrix of INS positioning equation
 	noise_w = zeros(9,9);   % kalman-filter's state transformation noise variance
@@ -118,20 +120,22 @@ function [ ins_position, ins_velocity, ins_attitude, recorder, RS_test ] = INSUp
 		ins_attitude(k,:) = ins_attitude(k-1,:) + delta_t*( R*(gryo_measurement(k-1,:))' )';
         
         % the variance update funtion
+        error_state( k, : ) = ((eye(9,9)+delta_t*F) * error_state( k-1, : )')';
         ins_variance(:,:,k) = (eye(9,9)+delta_t*F) * ins_variance(:,:,k-1) * (eye(9,9)+delta_t*F') + noise_w;
         ins_variance_latch(:,:,k) = ins_variance(:,:,k);
         fai = fai * (eye(9,9)+delta_t*F);
         
         % do feedback every 7 seconds
-        if mod(k-1,10) == 0
+        if mod(k-1,6) == 0
         
             % the kalman-filter feedback
             observe_vector(:,k) = ([ins_position(k,:),ins_velocity(k,:)]-gps_data(k,1:6))';
             temp = ins_variance(:,:,k)*eye(9,6)*inv(eye(6,9)*ins_variance(:,:,k)*eye(9,6)+observe_variance);
             ins_variance(:,:,k) = ins_variance(:,:,k) - ins_variance(:,:,k)*eye(9,6)*inv(eye(6,9)*ins_variance(:,:,k)*eye(9,6)+observe_variance)*eye(6,9)*ins_variance(:,:,k);
-            ins_position(k,:) = ins_position(k,:) - (temp(1:3,:)*observe_vector(:,k))';
-            ins_velocity(k,:) = ins_velocity(k,:) - (temp(4:6,:)*observe_vector(:,k))';
-            accel_accum_bias = accel_accum_bias + (temp(7:9,:)*observe_vector(:,k));
+            error_state(k,:) = (error_state(k,:)' + temp * (observe_vector(:,k) - error_state(k,1:6)'))';
+%             ins_position(k,:) = ins_position(k,:) - (temp(1:3,:)*observe_vector(:,k))';
+%             ins_velocity(k,:) = ins_velocity(k,:) - (temp(4:6,:)*observe_vector(:,k))';
+%             accel_accum_bias = accel_accum_bias + (temp(7:9,:)*observe_vector(:,k));
 
             % formulate the observe matrix H, its size is (21,18)
 %             H(:,:,k) = zeros( 21, 18 );
@@ -141,7 +145,7 @@ function [ ins_position, ins_velocity, ins_attitude, recorder, RS_test ] = INSUp
 %             H(16:21,10:15, k) = eye(6,6);
             fai_latch(:,:,k) = fai;
             latch2(:,:,k) = latch;
-            H(:,:,k) = fai * ( eye(9,9) - latch*eye(6,9) );
+            H(:,:,k) = fai;%fai * ( eye(9,9) - latch*eye(6,9) );
 
             %formulate the variance matrix V, its size is (21,21)
 %             V = zeros(21,21);
@@ -174,6 +178,14 @@ function [ ins_position, ins_velocity, ins_attitude, recorder, RS_test ] = INSUp
             fai = eye(9,9);
             
             index(k) = 1;
+%             
+%             if mod(k-1,36) == 0
+            ins_position(k,:) = ins_position(k,:) - error_state(k,1:3);
+            ins_velocity(k,:) = ins_velocity(k,:) - error_state(k,4:6);
+            accel_accum_bias = (accel_accum_bias' + error_state(k,7:9))';
+            error_state(k,:) = zeros(1,9);
+%             end
+            
         end
 		
         recorder(:,k) = accel_accum_bias;

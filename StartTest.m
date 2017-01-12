@@ -24,11 +24,13 @@ start_ati = start_info(3,:);
 %   IMU_measurement manualy
 gps_data(:,3:end) = gps_data(:,3:end) + randn(size(gps_data(:,3:end)))*sqrt(0.005);
 
-% index = randi(size(gps_data,1));
-% tmp = 1:size(gps_data,1);
-% gps_data(tmp>index,1:2) = gps_data(tmp>index,1:2) + 0.5;
+index = randi(size(gps_data,1));
+tmp = 1:size(gps_data,1);
+gps_data(tmp>index,3) = gps_data(tmp>index,3) + 5;
 
-accel_noise = sin( (1:length(accel_measurement))/length(accel_measurement)*4*pi )'*randn(1,3)*0.05;
+% accel_noise = sin( (1:length(accel_measurement))/length(accel_measurement)*4*pi )'*randn(1,3)*0.05;
+% accel_noise = randn( size(accel_measurement) ) * 0.005;
+accel_noise = 0;
 accel_measurement = accel_measurement + accel_noise;
 %
 
