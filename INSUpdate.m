@@ -1,4 +1,4 @@
-function [ ins_position, ins_velocity, ins_attitude, ins_variance, RS_test ] = INSUpdate( gryo_measurement, accel_measurement, delta_t, gps_data, start_position, start_velocity, start_attitude )
+function [ ins_position, ins_velocity, ins_attitude, recorder, RS_test, time_scale ] = INSUpdate( gryo_measurement, accel_measurement, delta_t, gps_data, start_position, start_velocity, start_attitude )
 	
 	% This file is used to do INS update using the measurement got from simulation
 	% The gryo_measurement is in body axis, and is calculated by delta_theta/dt
@@ -13,7 +13,7 @@ function [ ins_position, ins_velocity, ins_attitude, ins_variance, RS_test ] = I
 	
 	total_length = length( gryo_measurement ) + 1;
     
-    recorder = zeros(3,total_length);
+    recorder = zeros(6,total_length);
     
 	time_scale = (0:total_length-1)*delta_t;
 	ins_position = zeros( total_length, 3 );
@@ -38,11 +38,11 @@ function [ ins_position, ins_velocity, ins_attitude, ins_variance, RS_test ] = I
     noise_w(8,8) = 0.05;
     noise_w(9,9) = 0.05;
     ins_variance = zeros(9,9,total_length); % the variance matrix of delta_p, delta_v, delta_a
-    ins_variance(:,:,1) = eye(9,9)*0.005;
+    ins_variance(:,:,1) = eye(9,9)*0.5;
     ins_variance(1,1,1) = 1E-4; % position error is 100 meters
     ins_variance(2,2,1) = 1E-4;
     ins_variance_latch = zeros(9,9,total_length);
-    observe_variance = eye(6,6)*0.005;  % the observe data variance matrix
+    observe_variance = eye(6,6)*0.5;  % the observe data variance matrix
     observe_variance(1,1) = 1E-4;
     observe_variance(2,2) = 1E-4;
     
@@ -117,6 +117,10 @@ function [ ins_position, ins_velocity, ins_attitude, ins_variance, RS_test ] = I
 		% the ins positioning function
 		ins_position(k,:) = ( ins_position(k-1,:)' + delta_t * ( D * ins_velocity(k-1,:)' ) )';
 		ins_velocity(k,:) = ins_velocity(k-1,:) + delta_t*( R_b2n*((accel_measurement(k-1,:)-accel_accum_bias')') - cross(w_n2i_pseu, ins_velocity(k-1,:)') + [0;0;gravity(ins_position(k-1,1),ins_position(k-1,3))])';
+        % Why there should be a gravity component before : because the
+        % accel_measurement is not the total accel in body frame, the
+        % gravity can give the accelerator a -gravity accel, so we need to
+        % add one +gravity to the total accel
 		ins_attitude(k,:) = ins_attitude(k-1,:) + delta_t*( R*(gryo_measurement(k-1,:))' )';
         
         % the variance update funtion
@@ -126,69 +130,34 @@ function [ ins_position, ins_velocity, ins_attitude, ins_variance, RS_test ] = I
         fai = fai * (eye(9,9)+delta_t*F);
         
         % do feedback every 7 seconds
-        if mod(k-1,6) == 0
+        if mod(k-1,3) == 0
         
             % the kalman-filter feedback
-            observe_vector(:,k) = ([ins_position(k,:),ins_velocity(k,:)]-gps_data(k,1:6))';
-            temp = ins_variance(:,:,k)*eye(9,6)*inv(eye(6,9)*ins_variance(:,:,k)*eye(9,6)+observe_variance);
+            observe_vector(:,k) = ([ins_position(k,:),ins_velocity(k,:)]-gps_data(k,1:6))'; % because the error_state's varivance will be involved into the positioning equation, so the observe vector's variance should be GPS_observe_variance + error_state_variance
+            temp = ins_variance(:,:,k)*eye(9,6)*inv(eye(6,9)*ins_variance(:,:,k)*eye(9,6)+observe_variance);    % use LMMSE to estimate the error_state, temp is ExyRyy^-1
             ins_variance(:,:,k) = ins_variance(:,:,k) - ins_variance(:,:,k)*eye(9,6)*inv(eye(6,9)*ins_variance(:,:,k)*eye(9,6)+observe_variance)*eye(6,9)*ins_variance(:,:,k);
             error_state(k,:) = (error_state(k,:)' + temp * (observe_vector(:,k) - error_state(k,1:6)'))';
-%             ins_position(k,:) = ins_position(k,:) - (temp(1:3,:)*observe_vector(:,k))';
-%             ins_velocity(k,:) = ins_velocity(k,:) - (temp(4:6,:)*observe_vector(:,k))';
-%             accel_accum_bias = accel_accum_bias + (temp(7:9,:)*observe_vector(:,k));
 
-            % formulate the observe matrix H, its size is (21,18)
-%             H(:,:,k) = zeros( 21, 18 );
-%             H(1:6,1:6) = eye(6,6);
-%             H(7:15,1:9, k) = fai*(eye(9,9)-latch*eye(6,9));
-%             H(7:15,10:18, k) = -eye(9,9);
-%             H(16:21,10:15, k) = eye(6,6);
-            fai_latch(:,:,k) = fai;
             latch2(:,:,k) = latch;
-            H(:,:,k) = fai;%fai * ( eye(9,9) - latch*eye(6,9) );
+            H(:,:,k) = fai * ( eye(9,9) - latch*eye(6,9) );
 
-            %formulate the variance matrix V, its size is (21,21)
-%             V = zeros(21,21);
-%             V(1:6,1:6) = eye(6,6)*0.005;
-%             V(7:15,7:15) = ins_variance(:,:,k);
-%             V(16:21,16:21) = eye(6,6)*0.005;
-
-            % formulate the observe vector, which consists of delta_x1,
-            % delta_v1, zero*9, delta_x2, delta_v2
-%             observe_vector_rs = zeros(21,1);
-%             observe_vector_rs(1:6) = observe_vector(:,k-10);
-%             observe_vector_rs(16:21) = observe_vector(:,k);
-
-            % calculate the residue vector, assume the noise is of standard
-            % gauss distribution
-%             rs(:,k) = observe_vector_rs - H(:,:,k) * inv(H(:,:,k)'/V*H(:,:,k)) * H(:,:,k)'/(V)*observe_vector_rs;
-%             judge(k) = rs(:,k)' / V * rs(:,k);
-
-            %calculate the gx
-%             S = inv( H(:,:,k)' * inv(V) * H(:,:,k) ) * H(:,:,k)' * inv(V);
-%             A = zeros(21,12);
-%             A(1:6,1:6) = eye(6,6);
-%             A(16:21,7:12) = eye(6,6);
-%             s_t = S(10,:);
-%             Mx = s_t * A;
-%             Ma = sqrt( A' * inv(V) * (eye(21,21)-H(:,:,k)*S) * A );
-%             gx(k) = norm(Mx*Ma)^2;
 
             latch = temp;
             fai = eye(9,9);
             
             index(k) = 1;
-%             
-%             if mod(k-1,36) == 0
-            ins_position(k,:) = ins_position(k,:) - error_state(k,1:3);
+
+            % renew the ins_position, but the error_state's variance will
+            % be involved into the position equation
+            ins_position(k,:) = ins_position(k,:) - error_state(k,1:3); 
             ins_velocity(k,:) = ins_velocity(k,:) - error_state(k,4:6);
             accel_accum_bias = (accel_accum_bias' + error_state(k,7:9))';
             error_state(k,:) = zeros(1,9);
-%             end
+
             
         end
 		
-        recorder(:,k) = accel_accum_bias;
+        recorder(:,k) = observe_vector(:,k);
 		
     end
 	

@@ -22,18 +22,18 @@ start_ati = start_info(3,:);
 %
 %   code below used to add different kinds of noise to gps_data and
 %   IMU_measurement manualy
-gps_data(:,3:end) = gps_data(:,3:end) + randn(size(gps_data(:,3:end)))*sqrt(0.005);
+gps_data(:,3:end) = gps_data(:,3:end) + randn(size(gps_data(:,3:end)))*sqrt(0.05);
 
 index = randi(size(gps_data,1));
 tmp = 1:size(gps_data,1);
 gps_data(tmp>index,3) = gps_data(tmp>index,3) + 5;
 
 % accel_noise = sin( (1:length(accel_measurement))/length(accel_measurement)*4*pi )'*randn(1,3)*0.05;
-% accel_noise = randn( size(accel_measurement) ) * 0.005;
-accel_noise = 0;
+accel_noise = randn( size(accel_measurement) ) * 0.05;
+% accel_noise = 0;
 accel_measurement = accel_measurement + accel_noise;
 %
 
-[ ins_position, ins_velocity, ins_attitude, recorder, RS_test ] = INSUpdate( gryo_measurement, accel_measurement, delta_t, gps_data, start_p, start_v, start_ati );
+[ ins_position, ins_velocity, ins_attitude, recorder, RS_test, time_scale ] = INSUpdate( gryo_measurement, accel_measurement, delta_t, gps_data, start_p, start_v, start_ati );
 
-[judge, gx, rs] = RS_RAIM_check( RS_test );
+[judge, judge_another, gx, rs, direction] = RS_RAIM_check( RS_test );
